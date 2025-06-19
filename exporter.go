@@ -18,6 +18,7 @@ type YoLinkExporter struct {
 	humidity    *prometheus.Desc
 	battery     *prometheus.Desc
 	online      *prometheus.Desc
+	lastUpdated *prometheus.Desc
 	up          *prometheus.Desc
 
 	// Cache
@@ -53,6 +54,12 @@ func NewYoLinkExporter(client *YoLinkClient) *YoLinkExporter {
 			[]string{"device_id", "device_name", "model"},
 			nil,
 		),
+		lastUpdated: prometheus.NewDesc(
+			"yolink_last_updated_timestamp",
+			"Unix timestamp of when the device last reported data",
+			[]string{"device_id", "device_name", "model"},
+			nil,
+		),
 		up: prometheus.NewDesc(
 			"yolink_up",
 			"Whether the YoLink exporter is working (1) or not (0)",
@@ -68,6 +75,7 @@ func (e *YoLinkExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.humidity
 	ch <- e.battery
 	ch <- e.online
+	ch <- e.lastUpdated
 	ch <- e.up
 }
 
@@ -79,14 +87,14 @@ func (e *YoLinkExporter) Collect(ch chan<- prometheus.Metric) {
 	if time.Since(e.lastScrape) > time.Duration(viper.GetInt("scrape.interval"))*time.Second {
 		if err := e.refreshData(); err != nil {
 			log.Printf("Failed to refresh data: %v", err)
-			ch <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.up, prometheus.GaugeValue, 0))
+			ch <- prometheus.MustNewConstMetric(e.up, prometheus.GaugeValue, 0)
 			return
 		}
 		e.lastScrape = time.Now()
 	}
 
 	// Export up metric
-	ch <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.up, prometheus.GaugeValue, 1))
+	ch <- prometheus.MustNewConstMetric(e.up, prometheus.GaugeValue, 1)
 
 	// Export device metrics
 	for _, device := range e.devices {
@@ -102,18 +110,26 @@ func (e *YoLinkExporter) Collect(ch chan<- prometheus.Metric) {
 		if state.Data.Online {
 			onlineValue = 1.0
 		}
-		ch <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.online, prometheus.GaugeValue, onlineValue, labels...))
+		ch <- prometheus.MustNewConstMetric(e.online, prometheus.GaugeValue, onlineValue, labels...)
+
+		// Last updated timestamp
+		if reportAt, err := time.Parse(time.RFC3339, state.Data.ReportAt); err == nil {
+			lastUpdatedValue := float64(reportAt.Unix())
+			ch <- prometheus.MustNewConstMetric(e.lastUpdated, prometheus.GaugeValue, lastUpdatedValue, labels...)
+		} else {
+			log.Printf("Failed to parse reportAt time for device %s: %v", device.DeviceID, err)
+		}
 
 		// Only export sensor data if device is online
 		if state.Data.Online {
 			// Temperature
-			ch <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.temperature, prometheus.GaugeValue, state.Data.State.Temperature, labels...))
+			ch <- prometheus.MustNewConstMetric(e.temperature, prometheus.GaugeValue, state.Data.State.Temperature, labels...)
 
 			// Humidity
-			ch <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.humidity, prometheus.GaugeValue, state.Data.State.Humidity, labels...))
+			ch <- prometheus.MustNewConstMetric(e.humidity, prometheus.GaugeValue, state.Data.State.Humidity, labels...)
 
 			// Battery level
-			ch <- prometheus.NewMetricWithTimestamp(time.Now(), prometheus.MustNewConstMetric(e.battery, prometheus.GaugeValue, float64(state.Data.State.Battery), labels...))
+			ch <- prometheus.MustNewConstMetric(e.battery, prometheus.GaugeValue, float64(state.Data.State.Battery), labels...)
 		}
 	}
 }

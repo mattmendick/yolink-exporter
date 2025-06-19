@@ -20,6 +20,7 @@ The exporter exposes the following Prometheus metrics:
 - `yolink_humidity_percent` - Humidity percentage (with labels: device_id, device_name, model)
 - `yolink_battery_level` - Battery level 1-4 (with labels: device_id, device_name, model)
 - `yolink_device_online` - Device online status 1=online, 0=offline (with labels: device_id, device_name, model)
+- `yolink_last_updated_timestamp` - Unix timestamp of when the device last reported data (with labels: device_id, device_name, model)
 - `yolink_up` - Whether the exporter is working (1) or not (0)
 
 ## Installation
@@ -165,6 +166,21 @@ yolink_device_online
 ### Get battery levels for devices with low battery:
 ```
 yolink_battery_level < 2
+```
+
+### Get last update timestamps for all devices:
+```
+yolink_last_updated_timestamp
+```
+
+### Find devices that haven't reported in the last hour:
+```
+yolink_last_updated_timestamp < (time() - 3600)
+```
+
+### Get the age of the most recent data for each device:
+```
+time() - yolink_last_updated_timestamp
 ```
 
 ## Troubleshooting
