@@ -2,6 +2,8 @@
 
 A Prometheus exporter for YoLink thermometer/hygrometer devices that fetches temperature, humidity, and battery data from the YoLink API and exposes it as Prometheus metrics.
 
+> **Note**: This project was built almost exclusively with [Cursor](https://cursor.sh).
+
 ## Features
 
 - Fetches data from YoLink API using OAuth2 client credentials flow
@@ -227,4 +229,4 @@ go test ./...
 
 ## License
 
-[Add your license here] 
+This project is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details. 
